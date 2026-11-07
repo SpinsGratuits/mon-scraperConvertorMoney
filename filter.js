@@ -6,45 +6,52 @@ async function run() {
     const configRaw = fs.readFileSync('devises_config.json', 'utf8');
     const configData = JSON.parse(configRaw);
     
-    // Crée un tableau des codes (ex: ['EUR', 'USD', 'GBP', ...])
+    // Extrait les codes cibles (ex: ['EUR', 'USD', 'GBP', ...])
     const codesCibles = configData.devises.map(d => d.code);
 
-    // 2. Récupérer l'intégralité des taux depuis Frankfurter (Base EUR)
-    // L'endpoint /v2/rates renvoie la liste complète à plat
-    const response = await fetch('https://frankfurter.dev');
-    const rows = await response.json();
+    // 2. Appel à la bonne adresse d'API Frankfurter v2
+    const response = await fetch('https://api.frankfurter.dev/v2/rates');
+    
+    if (!response.ok) {
+      throw new Error(`Erreur API Frankfurter: ${response.status}`);
+    }
+    
+    // L'API v2 renvoie directement un tableau d'objets JSON
+    const tableauBrut = await response.json();
 
-    // 3. Transformer la réponse brute en un objet clé-valeur de taux
-    // (Frankfurter /v2/rates renvoie un tableau d'objets avec {quote, rate})
+    // 3. Convertir le tableau d'objets en un dictionnaire clé-valeur propre
     const tousLesTaux = {};
+    
     // L'euro par rapport à lui-même vaut toujours 1.0
     tousLesTaux['EUR'] = 1.0; 
     
-    rows.forEach(row => {
-      tousLesTaux[row.quote] = row.rate;
+    // On parcourt chaque élément du tableau pour l'ajouter au dictionnaire
+    tableauBrut.forEach(item => {
+      if (item.quote && item.rate) {
+        tousLesTaux[item.quote] = item.rate;
+      }
     });
 
-    // 4. Filtrer pour ne garder QUE les devises du fichier de configuration
+    // 4. Filtrer pour ne garder QUE les devises de devises_config.json
     const tauxFiltres = {};
     codesCibles.forEach(code => {
       if (tousLesTaux[code] !== undefined) {
         tauxFiltres[code] = tousLesTaux[code];
       } else {
-        // Optionnel : si une devise de votre liste n'est momentanément pas renvoyée par l'API
         tauxFiltres[code] = null; 
       }
     });
 
-    // 5. Construire le fichier final taux.json propre pour l'application
+    // 5. Construire l'objet final taux.json
     const resultatFinal = {
       base: "EUR",
-      date: new Date().toISOString().split('T')[0],
+      date: tableauBrut[0]?.date || new Date().toISOString().split('T')[0],
       rates: tauxFiltres
     };
 
-    // 6. Écrire le fichier final sur le dépôt
+    // 6. Écrire le fichier final sur le dépôt GitHub
     fs.writeFileSync('taux.json', JSON.stringify(resultatFinal, null, 2), 'utf8');
-    console.log("Filtrage réussi ! Fichier taux.json généré avec succès.");
+    console.log("Filtrage réussi ! Le fichier taux.json a été mis à jour.");
 
   } catch (error) {
     console.error("Erreur lors du scraping ou du filtrage :", error);
