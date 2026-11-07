@@ -2,9 +2,9 @@ name: Actualisation Automatique des Taux
 
 on:
   schedule:
-    # S'exécute 2 fois par jour : à 06:00 et 18:00 UTC
+    # S'exécute à 06:00 et 18:00 UTC chaque jour
     - cron: '0 6,18 * * *'
-  workflow_dispatch: # Permet de forcer le lancement manuellement depuis GitHub si besoin
+  workflow_dispatch: # Permet de forcer manuellement depuis l'interface GitHub
 
 jobs:
   update-rates:
@@ -13,17 +13,17 @@ jobs:
       - name: Récupération du code du dépôt
         uses: actions/checkout@v4
 
-      - name: Téléchargement des nouveaux taux
-        run: |
-          # Utilisation d'une API gratuite et sans clé pour l'exemple (ex: er-api)
-          # Remplacez l'URL par celle de votre choix si vous avez un fournisseur spécifique
-          curl -s https://er-api.com -o taux.json
+      - name: Configuration de Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Exécution du script de filtrage des taux
+        run: node filter.js
 
       - name: Sauvegarde et Push sur GitHub
         run: |
           git config --global user.name "GitHub Action Scraper"
           git config --global user.email "action@github.com"
           git add taux.json
-          # Le script vérifie s'il y a des changements avant de sauvegarder pour éviter les erreurs
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Mise à jour automatique des taux" && git push)
-
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Mise à jour des taux filtrés (Frankfurter)" && git push)
