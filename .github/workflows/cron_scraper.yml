@@ -1,1 +1,29 @@
+name: Actualisation Automatique des Taux
+
+on:
+  schedule:
+    # S'exécute 2 fois par jour : à 06:00 et 18:00 UTC
+    - cron: '0 6,18 * * *'
+  workflow_dispatch: # Permet de forcer le lancement manuellement depuis GitHub si besoin
+
+jobs:
+  update-rates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupération du code du dépôt
+        uses: actions/checkout@v4
+
+      - name: Téléchargement des nouveaux taux
+        run: |
+          # Utilisation d'une API gratuite et sans clé pour l'exemple (ex: er-api)
+          # Remplacez l'URL par celle de votre choix si vous avez un fournisseur spécifique
+          curl -s https://er-api.com -o taux.json
+
+      - name: Sauvegarde et Push sur GitHub
+        run: |
+          git config --global user.name "GitHub Action Scraper"
+          git config --global user.email "action@github.com"
+          git add taux.json
+          # Le script vérifie s'il y a des changements avant de sauvegarder pour éviter les erreurs
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Mise à jour automatique des taux" && git push)
 
