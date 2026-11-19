@@ -9,28 +9,24 @@ async function run() {
     // Extrait les codes cibles (ex: ['EUR', 'USD', 'GBP', ...])
     const codesCibles = configData.devises.map(d => d.code);
 
-    // 2. Appel à la bonne adresse d'API Frankfurter v2
-    const response = await fetch('https://api.frankfurter.dev/v2/rates');
+    // 2. Appel direct à Currency-API (mise à jour 7j/7 avec la date du jour)
+    const response = await fetch('https://latest.currency-api.pages.dev/v1/currencies/eur.json');
     
     if (!response.ok) {
-      throw new Error(`Erreur API Frankfurter: ${response.status}`);
+      throw new Error(`Erreur Currency-API: ${response.status}`);
     }
     
-    // L'API v2 renvoie directement un tableau d'objets JSON
-    const tableauBrut = await response.json();
+    const dataBrute = await response.json();
 
-    // 3. Convertir le tableau d'objets en un dictionnaire clé-valeur propre
-    const tousLesTaux = {};
-    
-    // L'euro par rapport à lui-même vaut toujours 1.0
-    tousLesTaux['EUR'] = 1.0; 
-    
-    // On parcourt chaque élément du tableau pour l'ajouter au dictionnaire
-    tableauBrut.forEach(item => {
-      if (item.quote && item.rate) {
-        tousLesTaux[item.quote] = item.rate;
-      }
-    });
+    if (!dataBrute || !dataBrute.eur) {
+      throw new Error('Format JSON Currency-API invalide');
+    }
+
+    // 3. Convertir les clés en majuscules ("usd" -> "USD")
+    const tousLesTaux = { EUR: 1.0 };
+    for (const [codeMin, taux] of Object.entries(dataBrute.eur)) {
+      tousLesTaux[codeMin.toUpperCase()] = taux;
+    }
 
     // 4. Filtrer pour ne garder QUE les devises de devises_config.json
     const tauxFiltres = {};
@@ -38,20 +34,20 @@ async function run() {
       if (tousLesTaux[code] !== undefined) {
         tauxFiltres[code] = tousLesTaux[code];
       } else {
-        tauxFiltres[code] = null; 
+        tauxFiltres[code] = null;
       }
     });
 
     // 5. Construire l'objet final taux.json
     const resultatFinal = {
       base: "EUR",
-      date: tableauBrut[0]?.date || new Date().toISOString().split('T')[0],
+      date: dataBrute.date || new Date().toISOString().split('T')[0],
       rates: tauxFiltres
     };
 
     // 6. Écrire le fichier final sur le dépôt GitHub
     fs.writeFileSync('taux.json', JSON.stringify(resultatFinal, null, 2), 'utf8');
-    console.log("Filtrage réussi ! Le fichier taux.json a été mis à jour.");
+    console.log(`Filtrage réussi (${resultatFinal.date}) ! Le fichier taux.json a été mis à jour.`);
 
   } catch (error) {
     console.error("Erreur lors du scraping ou du filtrage :", error);
